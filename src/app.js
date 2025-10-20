@@ -76,12 +76,7 @@ app.get('/metrics', async (req, res) => {
   }
 });
 
-// Broken route - will cause 500 error
-app.get('/broken', (req, res) => {
-  // This will cause a reference error - undefinedFunction doesn't exist
-  undefinedFunction();
-  res.json({ message: 'This should never reach' });
-});
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found', path: req.originalUrl });
