@@ -24,14 +24,26 @@ const httpRequestDuration = new client.Histogram({
 });
 register.registerMetric(httpRequestDuration);
 
+// Custom request counter
+const httpRequestsTotal = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code']
+});
+register.registerMetric(httpRequestsTotal);
+
 // Middleware to track request duration
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
     const duration = (Date.now() - start) / 1000;
+    const route = req.route ? req.route.path : req.path;
     httpRequestDuration
-      .labels(req.method, req.route?.path || req.path, res.statusCode)
+      .labels(req.method, route, res.statusCode)
       .observe(duration);
+    httpRequestsTotal
+      .labels(req.method, route, res.statusCode)
+      .inc();
   });
   next();
 });
@@ -41,7 +53,8 @@ app.get('/', (req, res) => {
   res.json({
     message: '🚀 DevOps Pipeline is Working!',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    port: PORT
   });
 });
 
@@ -49,7 +62,8 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     uptime: process.uptime(),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    port: PORT
   });
 });
 
@@ -58,20 +72,42 @@ app.get('/metrics', async (req, res) => {
     res.set('Content-Type', register.contentType);
     res.end(await register.metrics());
   } catch (error) {
-    res.status(500).end(error);
+    res.status(500).json({ error: error.message });
   }
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Route not found', path: req.originalUrl });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Error:', err.stack);
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server - CRITICAL: Bind to 0.0.0.0 for Render
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Metrics available at http://localhost:${PORT}/metrics`);
+  console.log(`🌐 Accessible at: http://0.0.0.0:${PORT}`);
+  console.log(`📊 Metrics available at: http://0.0.0.0:${PORT}/metrics`);
 });
 
-module.exports = app; // For testing
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down...');
+  server.close(() => {
+    process.exit(0);
+  });
+});
+
+module.exports = app;
