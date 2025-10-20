@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "test": "jest",
+    "test": "jest --forceExit --detectOpenHandles",
     "build": "echo 'Building application...'"
   },
   "dependencies": {
@@ -20,10 +20,10 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "coverageDirectory": "coverage",
-    "collectCoverageFrom": [
-      "src/**/*.js"
-    ]
+    "collectCoverage": true,
+    "coverageReporters": ["text", "lcov"],
+    "testMatch": ["**/src/test/**/*.test.js"],
+    "verbose": true
   },
   "keywords": ["devops", "ci-cd", "pipeline"],
   "author": "Your Team",
