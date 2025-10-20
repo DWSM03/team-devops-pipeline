@@ -74,21 +74,33 @@ jobs:
         echo "🐳 Building Docker image..."
         docker build -t devops-app:${{ github.sha }} .
         
-        echo "🐳 Starting container..."
+        echo "🐳 Starting container and testing..."
+        # Run container and test if it starts successfully
         docker run --name test-container -d -p 3000:3000 devops-app:${{ github.sha }}
         
         echo "⏳ Waiting for app to start..."
         sleep 10
         
-        echo "🔍 Testing containerized application..."
-        # Test the app inside Docker
-        docker exec test-container curl -f http://localhost:3000/health || exit 1
-        docker exec test-container curl -f http://localhost:3000/metrics || exit 1
+        echo "🔍 Checking if container is running..."
+        # Check if container is still running (app started successfully)
+        if docker ps | grep test-container; then
+          echo "✅ Docker container is running - app started successfully"
+          
+          # Test from outside the container using host curl
+          echo "🔍 Testing endpoints from host..."
+          curl -f http://localhost:3000/health || exit 1
+          curl -f http://localhost:3000/metrics || exit 1
+          echo "✅ Endpoint tests passed"
+        else
+          echo "❌ Docker container failed to start"
+          docker logs test-container
+          exit 1
+        fi
         
         echo "🧹 Cleaning up..."
         docker stop test-container
         docker rm test-container
-        echo "✅ Docker tests passed"
+        echo "✅ Docker integration test passed"
 
   deploy:
     name: Deploy to Production
